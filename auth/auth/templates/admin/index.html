@@ -1,0 +1,53 @@
+{% extends 'admin/master.html' %}
+{% block body %}
+{{ super() }}
+<div class="container">
+    <div class="row">
+        <div class="col-sm-10 col-sm-offset-1">
+            <h1>Welcome to Release Control System</h1>
+            <p class="lead">
+                Achieve better management of firmware/software release. 
+            </p>
+
+            {% if not current_user.is_authenticated %}
+            <p>Please log in or register if you do not have an account.
+              
+ 
+            <p>
+                <a class="btn btn-primary" href="{{ url_for('security.login') }}">login</a> <a class="btn btn-default" href="{{ url_for('security.register') }}">register</a>
+            </p>
+            {% endif %}
+            
+            <p>
+                <a class="btn btn-success" href="/"><i class="glyphicon glyphicon-chevron-left"></i> Back</a>
+            </p>
+            
+            <div class="row marketing">
+            <div class="col-lg-6">
+               <h5><strong>Multiple Teams Management:</strong></h5>
+                <li>Allow managers to manage multiple teams.</li>
+                <li>Manage different sites.</li>
+                <h5><strong>Consistent Process:</strong></h5>
+                <li>Provides a repeatable and reliable release management process. </li>
+               
+                
+            </div>
+ 
+            <div class="col-lg-6">
+                <h5><strong>Increase Efficiency and Lower Cost:</strong></h5>
+                <li>Reduce time preparing for the manual/paper work approval.</li>
+                <li>Avoid re-producing the same quality issues.</li>
+                <h5><strong>Separation of Duties: </strong></h5>
+                <li>Reviewers <strong>must</strong> fulfill their own duties to review the code.</li> 
+                 
+            </div>
+        </div>
+            <br>
+            <br>
+            <footer class="footer">
+            <p>Copyright 2017 Foxconn CESBG &copy; All Rights Reserved.</p> 
+        </footer>
+        </div>
+    </div>
+</div>
+{% endblock body %}
