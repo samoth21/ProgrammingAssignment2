@@ -108,7 +108,7 @@ class Project(db.Model):
     
     def __unicode__(self):
         return self.name
-result = Project.query.with_entities(Project.SVN, Project.review1)
+
 
 # Customized the filter interface
 class CustomView(ModelView):
@@ -207,6 +207,41 @@ class MyModelView(sqla.ModelView):
                 return redirect(url_for('security.login', next=request.url))
 
 class SWProjectView(sqla.ModelView):
+    # All fields become Readonly if approved
+    form_overrides = {
+        'project_name': ReadOnlyStringField,
+        'team': ReadOnlyStringField,
+        'name': ReadOnlyStringField,
+        'version': ReadOnlyStringField,
+        'SVN': ReadOnlyStringField,
+        'notes': ReadOnlyStringField,
+        'comment1': ReadOnlyStringField,
+        'comment2': ReadOnlyStringField,
+        'comment3': ReadOnlyStringField,
+        'reviewer1': ReadOnlyStringField,
+        'reviewer2': ReadOnlyStringField
+    }
+
+    def edit_form(self, obj=None):
+        def readonly_condition():
+            if obj is None:
+                return False
+            return obj.approve
+        form = super(SWProjectView, self).edit_form(obj)
+        form.project_name.readonly_condition = readonly_condition
+        form.team.readonly_condition = readonly_condition
+        form.name.readonly_condition = readonly_condition
+        form.version.readonly_condition = readonly_condition
+        form.SVN.readonly_condition = readonly_condition
+        form.notes.readonly_condition = readonly_condition
+        form.comment1.readonly_condition = readonly_condition
+        form.comment2.readonly_condition = readonly_condition
+        form.comment3.readonly_condition = readonly_condition
+        form.reviewer1.readonly_condition = readonly_condition
+        form.reviewer2.readonly_condition = readonly_condition
+        return form
+    
+    # The filters
     column_searchable_list = ('team','name', 'project_name','reviewer1', 'reviewer2',) 
     column_filters = [
         #FilterEqual(column=User.last_name, name='Last Name'),
@@ -276,13 +311,9 @@ class SWProjectView(sqla.ModelView):
             rules.Field('version'),
             rules.Field('SVN'),
             #rules.Field('submitted_at'),
-            CustomizableField('notes', field_args={
-                 'readonly': False
-            }),
+            rules.Field('notes'),
             rules.Header('Reviewers'),
-            CustomizableField('reviewer1', field_args={
-                 'readonly': True
-            }),
+            rules.Field('reviewer1'),
             rules.Field('comment1'),
             CustomizableField('reviewer2', field_args={
                  'readonly': True
@@ -307,18 +338,14 @@ class SWProjectView(sqla.ModelView):
             rules.Field('SVN'),
             #rules.Field('submitted_at'),
             CustomizableField('notes', field_args={
-                 'readonly': False
+                 'readonly': True
             }),
             rules.Header('Reviewers'),
-            CustomizableField('reviewer1', field_args={
-                 'readonly': False
-            }),
+            rules.Field('reviewer1'),
             CustomizableField('comment1', field_args={
                  'readonly': True
             }),
-            CustomizableField('reviewer2', field_args={
-                 'readonly': False
-            }),
+            rules.Field('reviewer2'),
             rules.Field('comment2'),
             CustomizableField('review2', field_args={
                  'readonly': True
@@ -336,14 +363,8 @@ class SWProjectView(sqla.ModelView):
                  'readonly': True
             }),
             rules.Header('Project Info'),
-            CustomizableField('project_name', field_args={
-                 'readonly': False
-            }),
-            #rules.Field('project_name'),
-            CustomizableField('version', field_args={
-                 'readonly': False
-            }),
-            #rules.Field('version'),
+            rules.Field('project_name'),
+            rules.Field('version'),
             rules.Field('SVN'),
             #rules.Field('submitted_at'),
             rules.Field('notes'),
@@ -377,19 +398,11 @@ class SWProjectView(sqla.ModelView):
             #rules.Field('submitted_at'),
             rules.Field('notes'),
             rules.Header('Reviewers'),
-            CustomizableField('reviewer1', field_args={
-                 'readonly': False
-            }),
-            CustomizableField('comment1', field_args={
-                 'readonly': False
-            }),
+            rules.Field('reviewer1'),
+            rules.Field('comment1'),
             rules.Field('review1'),
-            CustomizableField('reviewer2', field_args={
-                 'readonly': False
-            }),
-            CustomizableField('comment2', field_args={
-                 'readonly': False
-            }),
+            rules.Field('reviewer2'),
+            rules.Field('comment2'),
             rules.Field('review2'),
             rules.Field('comment3'),
             rules.Field('approve'),   
