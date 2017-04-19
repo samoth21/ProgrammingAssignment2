@@ -42,6 +42,7 @@ def get_locale():
 
 # Create directory for file fields to use
 file_path = op.join(op.dirname(__file__), 'static')
+#file_path = "C:\\Users\\user\\Desktop"
 try:
     os.mkdir(file_path)
 except OSError:
@@ -83,6 +84,10 @@ class User(db.Model, UserMixin):
                             backref=db.backref('users', lazy='dynamic'))
     #projects = db.relationship('Project', secondary=project_users,
                        #     backref=db.backref('reviewers', lazy='dynamic'))
+    reviewer_1 = db.relationship('Project', backref='reviewer_1')
+    reviewer_2 = db.relationship('Project', backref='reviewer_2')
+    
+
     def __str__(self):
         return self.email
 
@@ -97,6 +102,7 @@ class Project(db.Model):
     #submitted_at = db.Column(db.DateTime())
     notes = db.Column(db.UnicodeText)
     reviewer1 = db.Column(db.Unicode(128)) 
+    reviewer1_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     review1 = db.Column(db.Boolean())
     comment1 = db.Column(db.UnicodeText)
     #comment1 = db.deferred(db.Column(db.UnicodeText))
@@ -126,7 +132,7 @@ class CustomizableField(Field):
         field_args.update(self.extra_field_args)
         return super(CustomizableField, self).__call__(form, form_opts, field_args)
 
-# Dynamically make "readonly" field
+# Dynamically make "readonly" field afer aproval
 class ReadOnlyStringField(StringField):
     @staticmethod
     def readonly_condition():
@@ -207,6 +213,8 @@ class MyModelView(sqla.ModelView):
                 return redirect(url_for('security.login', next=request.url))
 
 class SWProjectView(sqla.ModelView):
+    column_list = ['team','name', 'project_name','version','SVN', 'reviewer_1', 'review1',
+                   'reviewer_2', 'review2','approve']
     # All fields become Readonly if approved
     form_overrides = {
         'project_name': ReadOnlyStringField,
@@ -219,7 +227,8 @@ class SWProjectView(sqla.ModelView):
         'comment2': ReadOnlyStringField,
         'comment3': ReadOnlyStringField,
         'reviewer1': ReadOnlyStringField,
-        'reviewer2': ReadOnlyStringField
+        'reviewer2': ReadOnlyStringField,
+        #'reviewer_1': ReadOnlyStringField,
     }
 
     def edit_form(self, obj=None):
@@ -239,10 +248,11 @@ class SWProjectView(sqla.ModelView):
         form.comment3.readonly_condition = readonly_condition
         form.reviewer1.readonly_condition = readonly_condition
         form.reviewer2.readonly_condition = readonly_condition
+        #form.reviewer_1.readonly_condition = readonly_condition
         return form
     
     # The filters
-    column_searchable_list = ('team','name', 'project_name','reviewer1', 'reviewer2',) 
+    column_searchable_list = ('team','name', 'project_name',) 
     column_filters = [
         #FilterEqual(column=User.last_name, name='Last Name'),
         FilterApprove(column=Project.approve, name='Approve Status',
@@ -313,11 +323,11 @@ class SWProjectView(sqla.ModelView):
             #rules.Field('submitted_at'),
             rules.Field('notes'),
             rules.Header('Reviewers'),
-            rules.Field('reviewer1'),
+            #rules.Field('reviewer1'),
             rules.Field('comment1'),
-            CustomizableField('reviewer2', field_args={
-                 'readonly': True
-            }),
+            #CustomizableField('reviewer2', field_args={
+            #     'readonly': True
+            #}),
             CustomizableField('comment2', field_args={
                  'readonly': True
             }),
@@ -341,11 +351,11 @@ class SWProjectView(sqla.ModelView):
                  'readonly': True
             }),
             rules.Header('Reviewers'),
-            rules.Field('reviewer1'),
+            #rules.Field('reviewer1'),
             CustomizableField('comment1', field_args={
                  'readonly': True
             }),
-            rules.Field('reviewer2'),
+            #rules.Field('reviewer2'),
             rules.Field('comment2'),
             CustomizableField('review2', field_args={
                  'readonly': True
@@ -369,14 +379,14 @@ class SWProjectView(sqla.ModelView):
             #rules.Field('submitted_at'),
             rules.Field('notes'),
             rules.Header('Reviewers'),
-            rules.Field('reviewer1'),
+            #rules.Field('reviewer1'),
             #CustomizableField('reviewer1', field_args={
              #    'readonly': not self.model.approve
             #}),           
             CustomizableField('comment1', field_args={
                  'readonly': True
             }),
-            rules.Field('reviewer2'),
+            #rules.Field('reviewer2'),
             CustomizableField('comment2', field_args={
                  'readonly': True
             }),
@@ -405,7 +415,10 @@ class SWProjectView(sqla.ModelView):
             rules.Field('comment2'),
             rules.Field('review2'),
             rules.Field('comment3'),
-            rules.Field('approve'),   
+            rules.Field('approve'), 
+            CustomizableField('reviewer_1', field_args={
+                 'readonly': True
+            }),
             #rules.Field('reviewers'),
          ]
  
@@ -431,12 +444,12 @@ class SWProjectView(sqla.ModelView):
             rules.Field('project_name'),
             rules.Field('version'),
             rules.Field('SVN'),
-            #rules.Field('submitted_at'),
             rules.Field('notes'),
             rules.Header('Reviewers'),
-            rules.Field('reviewer1'),
-            rules.Field('reviewer2'),
-            #rules.Field('reviewers'),
+            #rules.Field('reviewer1'),
+            #rules.Field('reviewer2'),
+            rules.Field('reviewer_1'),
+            rules.Field('reviewer_2'),
         ]
         return create_form_rules
         '''
@@ -517,7 +530,7 @@ admin.add_view(MyModelView(User, db.session))
 #admin.add_view(SWProjectView(Project, db.session, name = "SW Project"))
 admin.add_view(SWProjectView(Project, db.session))
 admin.add_view(FileView(file_path, '/static/', name='File'))
-
+#admin.add_view(FileView(file_path, name='File'))
 
 # define a context processor for merging flask-admin's template context into the
 # flask-security views.
@@ -589,5 +602,5 @@ if __name__ == '__main__':
         build_sample_db()
 
     # Start app
-    #app.run(debug=True)
-    app.run(port=5004)
+    app.run(debug=True)
+    #app.run(port=5004)
