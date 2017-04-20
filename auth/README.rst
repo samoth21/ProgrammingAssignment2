@@ -7,3 +7,5 @@
 5. All fields become Readonly if approved                4/12
 6. Reviewer1, 2 can be selectable                       
    Remove Reviewer1, 2 in edit form                      4/19 
+7. Fix reviewer1,2 select issue
+   Team is selectable now                                4/20

@@ -19,6 +19,7 @@ from wtforms.fields import StringField
 from flask_admin.contrib.sqla.filters import BaseSQLAFilter
 from sqlalchemy.orm import deferred
 import warnings
+#from flask.ext.admin.contrib.sqla.view import func
 #from flask_babelex import Babel
 
 # Create Flask application
@@ -55,10 +56,17 @@ roles_users = db.Table(
     db.Column('role_id', db.Integer(), db.ForeignKey('role.id'))
 )
 
-# Define models
+# Define the reviewers when apply release
 project_users = db.Table(
     'project_users',
     db.Column('user_id', db.Integer(), db.ForeignKey('user.id')),
+    db.Column('project_id', db.Integer(), db.ForeignKey('project.id'))
+)
+
+# Define the team when apply release
+project_teams = db.Table(
+    'project_teams',
+    db.Column('team_id', db.Integer(), db.ForeignKey('team.id')),
     db.Column('project_id', db.Integer(), db.ForeignKey('project.id'))
 )
 
@@ -71,6 +79,13 @@ class Role(db.Model, RoleMixin):
     def __str__(self):
         return self.name
 
+class Team(db.Model, RoleMixin):
+    id = db.Column(db.Integer(), primary_key=True)
+    name = db.Column(db.String(80), unique=True)
+    description = db.Column(db.String(255))
+
+    def __str__(self):
+        return self.name
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
@@ -82,14 +97,14 @@ class User(db.Model, UserMixin):
     confirmed_at = db.Column(db.DateTime())
     roles = db.relationship('Role', secondary=roles_users,
                             backref=db.backref('users', lazy='dynamic'))
-    #projects = db.relationship('Project', secondary=project_users,
-                       #     backref=db.backref('reviewers', lazy='dynamic'))
-    reviewer_1 = db.relationship('Project', backref='reviewer_1')
+    
+    #reviewer_1 = db.relationship('Project', backref='reviewer_1')
     reviewer_2 = db.relationship('Project', backref='reviewer_2')
     
 
     def __str__(self):
-        return self.email
+        return self.first_name
+
 
 class Project(db.Model):
   
@@ -103,15 +118,20 @@ class Project(db.Model):
     notes = db.Column(db.UnicodeText)
     reviewer1 = db.Column(db.Unicode(128)) 
     reviewer1_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    #reviewer2_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     review1 = db.Column(db.Boolean())
     comment1 = db.Column(db.UnicodeText)
-    #comment1 = db.deferred(db.Column(db.UnicodeText))
     reviewer2 = db.Column(db.Unicode(128))  
     review2 = db.Column(db.Boolean())
     comment2 = db.Column(db.UnicodeText)
     approve = db.Column(db.Boolean())
-    comment3 = db.Column(db.UnicodeText)    
-    
+    comment3 = db.Column(db.UnicodeText)  
+    reviewers = db.relationship('User', secondary=project_users,
+                            backref=db.backref('projects', lazy='dynamic'))
+    teams = db.relationship('Team', secondary=project_teams,
+                            backref=db.backref('projectss', lazy='dynamic')) 
+    #reviewers2 = db.relationship('User', secondary=project_users,
+                            #backref=db.backref('projects', lazy='dynamic'))
     def __unicode__(self):
         return self.name
 
@@ -212,9 +232,38 @@ class MyModelView(sqla.ModelView):
                 # login
                 return redirect(url_for('security.login', next=request.url))
 
+class UserView(MyModelView):
+    column_list = ['roles','first_name', 'last_name','email', 'password', 'active']
+    form_create_rules = [
+        rules.Field('roles'),
+        rules.Field('first_name'),
+        rules.Field('last_name'),
+        rules.Field('email'),
+        rules.Field('password'),
+        rules.Field('active')
+      ]
+
+    form_edit_rules = form_create_rules
+    create_template = 'rule_create.html'
+    edit_template = 'rule_edit.html'
+
+class TeamView(MyModelView):
+    column_list = ['name','description']
+    form_create_rules = [
+        rules.Field('name'),
+        rules.Field('description')
+      ]
+
+    form_edit_rules = form_create_rules
+    create_template = 'rule_create.html'
+    edit_template = 'rule_edit.html'
+
+
+   
 class SWProjectView(sqla.ModelView):
-    column_list = ['team','name', 'project_name','version','SVN', 'reviewer_1', 'review1',
-                   'reviewer_2', 'review2','approve']
+    column_list = ['teams','name', 'project_name','version','SVN', 'reviewers','review1',
+                    'reviewer_2','review2','approve' ]
+    
     # All fields become Readonly if approved
     form_overrides = {
         'project_name': ReadOnlyStringField,
@@ -225,9 +274,9 @@ class SWProjectView(sqla.ModelView):
         'notes': ReadOnlyStringField,
         'comment1': ReadOnlyStringField,
         'comment2': ReadOnlyStringField,
-        'comment3': ReadOnlyStringField,
-        'reviewer1': ReadOnlyStringField,
-        'reviewer2': ReadOnlyStringField,
+        #'comment3': ReadOnlyStringField,
+        #'reviewer1': ReadOnlyStringField,
+        #'reviewer2': ReadOnlyStringField,
         #'reviewer_1': ReadOnlyStringField,
     }
 
@@ -245,9 +294,9 @@ class SWProjectView(sqla.ModelView):
         form.notes.readonly_condition = readonly_condition
         form.comment1.readonly_condition = readonly_condition
         form.comment2.readonly_condition = readonly_condition
-        form.comment3.readonly_condition = readonly_condition
-        form.reviewer1.readonly_condition = readonly_condition
-        form.reviewer2.readonly_condition = readonly_condition
+        #form.comment3.readonly_condition = readonly_condition
+        #form.reviewer1.readonly_condition = readonly_condition
+        #form.reviewer2.readonly_condition = readonly_condition
         #form.reviewer_1.readonly_condition = readonly_condition
         return form
     
@@ -315,6 +364,7 @@ class SWProjectView(sqla.ModelView):
          edit_form_rules = [        
             rules.Header('Personal Info'),
             rules.Field('team'),
+            rules.Field('teams'),
             rules.Field('name'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
@@ -341,6 +391,7 @@ class SWProjectView(sqla.ModelView):
          edit_form_rules = [        
             rules.Header('Personal Info'),
             rules.Field('team'),
+            rules.Field('teams'),
             rules.Field('name'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
@@ -369,6 +420,7 @@ class SWProjectView(sqla.ModelView):
             CustomizableField('team', field_args={
                  'readonly': True
             }),
+            rules.Field('teams'),
             CustomizableField('name', field_args={
                  'readonly': True
             }),
@@ -400,6 +452,7 @@ class SWProjectView(sqla.ModelView):
          edit_form_rules = [        
             rules.Header('Personal Info'),
             rules.Field('team'),
+            rules.Field('teams'),
             rules.Field('name'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
@@ -408,17 +461,17 @@ class SWProjectView(sqla.ModelView):
             #rules.Field('submitted_at'),
             rules.Field('notes'),
             rules.Header('Reviewers'),
-            rules.Field('reviewer1'),
+            #rules.Field('reviewer1'),
             rules.Field('comment1'),
             rules.Field('review1'),
-            rules.Field('reviewer2'),
+            #rules.Field('reviewer2'),
             rules.Field('comment2'),
             rules.Field('review2'),
             rules.Field('comment3'),
             rules.Field('approve'), 
-            CustomizableField('reviewer_1', field_args={
-                 'readonly': True
-            }),
+            #CustomizableField('reviewer_1', field_args={
+            #     'readonly': True
+            #}),
             #rules.Field('reviewers'),
          ]
  
@@ -438,6 +491,7 @@ class SWProjectView(sqla.ModelView):
 
         create_form_rules = [
             rules.Header('Personal Info'),
+            rules.Field('teams'),
             rules.Field('team'),
             rules.Field('name'),
             rules.Header('Project Info'),
@@ -448,7 +502,8 @@ class SWProjectView(sqla.ModelView):
             rules.Header('Reviewers'),
             #rules.Field('reviewer1'),
             #rules.Field('reviewer2'),
-            rules.Field('reviewer_1'),
+            #rules.Field('reviewer_1'),
+            rules.Field('reviewers'),
             rules.Field('reviewer_2'),
         ]
         return create_form_rules
@@ -526,9 +581,10 @@ admin = flask_admin.Admin(
 #with warnings.catch_warnings():
 #warnings.filterwarnings('ignore', 'Fields missing from ruleset', UserWarning)
 admin.add_view(MyModelView(Role, db.session))
-admin.add_view(MyModelView(User, db.session))
-#admin.add_view(SWProjectView(Project, db.session, name = "SW Project"))
-admin.add_view(SWProjectView(Project, db.session))
+admin.add_view(UserView(User, db.session))
+admin.add_view(TeamView(Team, db.session))
+admin.add_view(SWProjectView(Project, db.session, name = "Release"))
+#admin.add_view(SWProjectView(Project, db.session))
 admin.add_view(FileView(file_path, '/static/', name='File'))
 #admin.add_view(FileView(file_path, name='File'))
 
