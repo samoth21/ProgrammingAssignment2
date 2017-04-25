@@ -11,3 +11,7 @@
    Team is selectable now                                4/20
 8. Fix team, reviewer select to one-to-one
    User file privileges revise                           4/22
+9. Automatical show the developer of when creating project
+   Only current user can edit his/her project
+   Drop button to select reviewer1&2 (fixed)
+   Allow assigned reviewer1&2 edit their own review      4/25
