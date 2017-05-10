@@ -12,6 +12,21 @@
 8. Fix team, reviewer select to one-to-one
    User file privileges revise                           4/22
 9. Automatical show the developer of when creating project
-   Only current user can edit his/her project
+   Only the project owner can edit his/her project
    Drop button to select reviewer1&2 (fixed)
-   Allow assigned reviewer1&2 edit their own review      4/25
+   Only assigned reviewer1&2 edit their own review      4/25
+
+10. Add validator(Required) to all fields
+    Add Date of project
+    Not allow admin to edit project
+    All fields are read-only after approval, using textarea   4/26
+
+11. Change "Submitted At" to "Date"
+    Only admin can delete project                        
+    Automatical show the developer's team of when creating project  
+    Change User return from first name to email                   5/6
+
+12. Add timestamp  for the last update time (OK!)
+    Show the last editor (OK)
+    Edit the project according to the review order (OK!)
+                                                               5/9

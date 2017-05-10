@@ -1,6 +1,6 @@
-import os, datetime
+import os
 import os.path as op
-from flask import Flask, url_for, redirect, render_template, request, abort, session, flash
+from flask import Flask, url_for, redirect, render_template, request, abort, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import Security, SQLAlchemyUserDatastore, \
     UserMixin, RoleMixin, login_required, current_user
@@ -15,22 +15,12 @@ from flask import has_app_context
 from flask_admin.contrib.fileadmin import FileAdmin
 from flask_admin.contrib.sqla import ModelView
 from flask_admin.form.rules import Field
-from wtforms.fields import StringField, TextAreaField
+from wtforms.fields import StringField
 from flask_admin.contrib.sqla.filters import BaseSQLAFilter
 from sqlalchemy.orm import deferred
 import warnings
-from wtforms import SelectField
-from wtforms.validators import Required
-from wtforms.validators import DataRequired,EqualTo,InputRequired,NumberRange
-from wtforms.validators import AnyOf
-from decimal import Decimal
-from datetime import date
-from flask_admin.model import typefmt
-from flask_admin.contrib.sqla.view import ModelView, func
-from wtforms.ext.sqlalchemy.fields import QuerySelectField
-from datetime import timedelta
+#from flask.ext.admin.contrib.sqla.view import func
 #from flask_babelex import Babel
-
 
 # Create Flask application
 app = Flask(__name__)
@@ -66,14 +56,6 @@ roles_users = db.Table(
     db.Column('role_id', db.Integer(), db.ForeignKey('role.id'))
 )
 
-# Define user teams
-teams_users = db.Table(
-    'teams_users',
-    db.Column('team_id', db.Integer(), db.ForeignKey('team.id')),
-    db.Column('user_id', db.Integer(), db.ForeignKey('user.id'))
-)
-
-
 # Define the reviewers when apply release
 project_users = db.Table(
     'project_users',
@@ -88,24 +70,14 @@ project_teams = db.Table(
     db.Column('project_id', db.Integer(), db.ForeignKey('project.id'))
 )
 
-# Change the date formatter to Y/m/d H:M
-def date_format(view, value):
-    return value.strftime('%Y/%m/%d %H:%M')
-
-MY_DEFAULT_FORMATTERS = dict(typefmt.BASE_FORMATTERS)
-MY_DEFAULT_FORMATTERS.update({
-        #type(None): typefmt.null_formatter,
-        date: date_format})
 
 class Role(db.Model, RoleMixin):
     id = db.Column(db.Integer(), primary_key=True)
     name = db.Column(db.String(80), unique=True)
-    description = db.Column(db.String(255))  
+    description = db.Column(db.String(255))
 
     def __str__(self):
         return self.name
-
-role = Role.query.get(4)
 
 class Team(db.Model, RoleMixin):
     id = db.Column(db.Integer(), primary_key=True)
@@ -125,19 +97,17 @@ class User(db.Model, UserMixin):
     confirmed_at = db.Column(db.DateTime())
     roles = db.relationship('Role', secondary=roles_users,
                             backref=db.backref('users', lazy='dynamic'))
-    teams = db.relationship('Team', secondary=teams_users,uselist=False,
-                            backref=db.backref('users', lazy='dynamic'))
     
     #reviewer_1 = db.relationship('Project', backref='reviewer_1')
     reviewer_2 = db.relationship('Project', backref='reviewer_2')
-
+    
 
     def __str__(self):
         return self.first_name
 
 
 class Project(db.Model):
-
+  
     id = db.Column(db.Integer, primary_key=True)
     team = db.Column(db.Unicode(64))
     name = db.Column(db.Unicode(128))  
@@ -145,9 +115,7 @@ class Project(db.Model):
     version = db.Column(db.Unicode(128))
     SVN = db.Column(db.UnicodeText)
     #submitted_at = db.Column(db.DateTime())
-    submitted_at = db.Column(db.DateTime, default=datetime.datetime.now)
-    updated_on = db.Column(db.DateTime, onupdate=datetime.datetime.now)
-    notes = db.Column(db.Text, nullable=False)
+    notes = db.Column(db.UnicodeText)
     reviewer1 = db.Column(db.Unicode(128)) 
     reviewer1_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     #reviewer2_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -157,19 +125,16 @@ class Project(db.Model):
     review2 = db.Column(db.Boolean())
     comment2 = db.Column(db.UnicodeText)
     approve = db.Column(db.Boolean())
-    comment3 = db.Column(db.UnicodeText) 
-    last_editor = db.Column(db.Unicode(128)) 
-    reviewers = db.relationship('User', secondary=project_users,uselist=False,
+    comment3 = db.Column(db.UnicodeText)  
+    reviewers = db.relationship('User', secondary=project_users,
                             backref=db.backref('projects', lazy='dynamic'))
-    
-    teams = db.Column(db.Unicode(128))
-    #teams = db.relationship('Team', secondary=project_teams,uselist=False,
-                            #backref=db.backref('projectss', lazy='dynamic'))  
- 
+    teams = db.relationship('Team', secondary=project_teams,
+                            backref=db.backref('projectss', lazy='dynamic')) 
+    #reviewers2 = db.relationship('User', secondary=project_users,
+                            #backref=db.backref('projects', lazy='dynamic'))
     def __unicode__(self):
         return self.name
-    #def __init__(self, updated_on=None):
-      #self.updated_on = datetime.utcnow()
+
 
 # Customized the filter interface
 class CustomView(ModelView):
@@ -187,7 +152,7 @@ class CustomizableField(Field):
         field_args.update(self.extra_field_args)
         return super(CustomizableField, self).__call__(form, form_opts, field_args)
 
-# Dynamically make "readonly" field afer approval: for one liner string field
+# Dynamically make "readonly" field afer aproval
 class ReadOnlyStringField(StringField):
     @staticmethod
     def readonly_condition():
@@ -206,72 +171,50 @@ class ReadOnlyStringField(StringField):
         if not self.readonly_condition():
             super(ReadOnlyStringField, self).populate_obj(obj, name)
 
-# Dynamically make "readonly" field afer approval: for multi-liner text area
-class ReadOnlyTextAreaField(TextAreaField):
-    @staticmethod
-    def readonly_condition():
-        # Dummy readonly condition
-        return False
-
-    def __call__(self, *args, **kwargs):
-        # Adding `readonly` property to `input` field
-        if self.readonly_condition():
-            kwargs.setdefault('readonly', True)
-        return super(ReadOnlyTextAreaField, self).__call__(*args, **kwargs)
-
-    def populate_obj(self, obj, name):
-        # Preventing application from updating field value
-        # (user can modify web page and update the field)
-        if not self.readonly_condition():
-            super(ReadOnlyTextAreaField, self).populate_obj(obj, name)
-
 # Approve custom filter class
 class FilterApprove(BaseSQLAFilter):
     def apply(self, query, value, alias=None):
         if value == '1':
             return query.filter(self.column == 1)
-        if value == '2':
-            return query.filter(self.column == None)
+        else:
+            return query.filter(self.column != 1)
 
     def operation(self):
-        return 'EqualTo'
+        return 'Status'
+'''
+#class File(db.Model):
+class File(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Unicode(64))
+    path = db.Column(db.Unicode(128))
 
+    def __unicode__(self):
+        return self.name
+
+# Delete hooks for models, delete files if models are getting deleted
+@listens_for(File, 'after_delete')
+def del_file(mapper, connection, target):
+    if target.path:
+        try:
+            os.remove(op.join(file_path, target.path))
+        except OSError:
+            # Don't care if was not deleted because it does not exist
+            pass
+'''
 
 # Setup Flask-Security
 user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 security = Security(app, user_datastore)
 
 
-# Create customized model view class for all users to edit their own profiles
-class MyModelView(ModelView):
+# Create customized model view class
+class MyModelView(sqla.ModelView):
+
     def is_accessible(self):
         if not current_user.is_active or not current_user.is_authenticated:
             return False
 
-        #if current_user.has_role('administrator'):
-            #return True
-        return True
-
-    def _handle_view(self, name, **kwargs):
-        """
-        Override builtin _handle_view in order to redirect users when a view is not accessible.
-        """
-        if not self.is_accessible():
-            if current_user.is_authenticated:
-                # permission denied
-                abort(403)
-            else:
-                # login
-                return redirect(url_for('security.login', next=request.url))
-
-# Create customized model view class for administrator only
-class AdminModelView(ModelView):
-    can_delete = False
-    can_create = False
-    def is_accessible(self):
-        if not current_user.is_active or not current_user.is_authenticated:
-            return False
-
+        #if current_user.has_role('superuser'):
         if current_user.has_role('administrator'):
             return True
 
@@ -289,154 +232,57 @@ class AdminModelView(ModelView):
                 # login
                 return redirect(url_for('security.login', next=request.url))
 
-    form_create_rules = [
-        CustomizableField('name', field_args={
-                 'readonly': True
-            }),
-        rules.Field('description'),
-        rules.Field('users'),
-
-      ]
-
-    form_edit_rules = form_create_rules
-    create_template = 'rule_create.html'
-    edit_template = 'rule_edit.html'
-    
 class UserView(MyModelView):
-    # Restrict only the current user can see his own profile
-    can_delete = False
-    can_create = False
-    def get_query(self):
-      return self.session.query(self.model).filter(self.model.id==current_user.id)
-
-    def get_count_query(self):
-      return self.session.query(func.count('*')).filter(self.model.id==current_user.id)
-    
-    form_args = dict(
-        teams=dict(validators=[DataRequired()]),
-        first_name=dict(validators=[DataRequired()]),
-        last_name=dict(validators=[DataRequired()]),
-        email=dict(validators=[DataRequired()]),
-        password=dict(validators=[DataRequired()]),
-    )
-
-
-    column_labels = dict(teams='Team', roles='Role')
-    column_list = ['first_name', 'last_name','roles','teams','email', 'active']
+    column_list = ['first_name', 'last_name','email', 'password', 'active']
     form_create_rules = [
-        rules.Field('teams'),
         #rules.Field('roles'),
         rules.Field('first_name'),
         rules.Field('last_name'),
         rules.Field('email'),
         rules.Field('password'),
-        #rules.Field('active')
+        rules.Field('active')
       ]
 
     form_edit_rules = form_create_rules
     create_template = 'rule_create.html'
     edit_template = 'rule_edit.html'
 
-# This class is for admin to manage all users
-class UserListView(AdminModelView):
-    can_delete = True
-    form_args = dict(
-        teams=dict(validators=[DataRequired()]),
-        first_name=dict(validators=[DataRequired()]),
-        last_name=dict(validators=[DataRequired()]),
-        email=dict(validators=[DataRequired()]),
-        password=dict(validators=[DataRequired()]),
-    )
-
-    column_labels = dict(teams='Team', roles='Role')
-    column_list = ['first_name', 'last_name','roles','teams','email', 'active']
-    form_create_rules = [
-        rules.Field('teams'),
-        #rules.Field('roles'),
-        rules.Field('first_name'),
-        rules.Field('last_name'),
-        rules.Field('email'),
-        rules.Field('password'),
-        #rules.Field('active')
-      ]
-
-    form_edit_rules = form_create_rules
-    create_template = 'rule_create.html'
-    edit_template = 'rule_edit.html'
-
-
-class TeamView(AdminModelView):
-    can_delete = True
+class TeamView(MyModelView):
     column_list = ['name','description']
     form_create_rules = [
         rules.Field('name'),
-        rules.Field('description'),
-        rules.Field('users')
+        rules.Field('description')
       ]
 
     form_edit_rules = form_create_rules
     create_template = 'rule_create.html'
     edit_template = 'rule_edit.html'
 
-def reviewer1_choices():
-    return User.query.join(User.roles).filter(Role.id == 4)
-def reviewer2_choices():
-    return User.query.join(User.roles).filter(Role.id == 5)
-
-class SWProjectView(sqla.ModelView):
-    # The developer can only see her/his project
-    #def get_query(self):
-      #return self.session.query(self.model).filter(self.model.teams==current_user.teams.name)
-
-    #def get_count_query(self):
-      #return self.session.query(func.count('*')).filter(self.model.teams==current_user.teams.name)
-
-
-    # Coustomize the column name and order
-    column_labels = dict(teams='Team', reviewers='Reviewer1',SVN='SVN',version='Version',name='Developer',
-                         reviewer_2='Reviewer2', review1='Review1 Status', review2='Review2 Status',
-                         approve='Final Approval', project_name='Project', submitted_at='Created On')
-                         
-    column_list = ['teams','name', 'project_name','version','submitted_at','reviewer1',
-                   'review1','reviewer2','review2','approve', 'updated_on', 'last_editor' ]   #'reviewers', 'reviewer_2'
- 
-    # The dropdown button to select reviewers and teams
-    '''
-    form_choices = { 'reviewer1': [ ('Jason','Jason'), ('Wesker','Wesker')],
-                     'reviewer2': [ ('Steve','Steve')]
-                   }
-    '''
-    reviewer1 = QuerySelectField(query_factory = reviewer1_choices)
-    reviewer2 = QuerySelectField(query_factory = reviewer2_choices)
-    
-
-    # Date formatter
-    column_type_formatters = MY_DEFAULT_FORMATTERS
-
-    # The input data validators
-    form_args = dict(
-        version=dict(validators=[DataRequired()]),
-        project_name=dict(validators=[DataRequired()]),
-        notes=dict(validators=[DataRequired()]),
-        reviewer1=dict(validators=[DataRequired()]),
-        reviewer2=dict(validators=[DataRequired()]),
-        SVN=dict(validators=[DataRequired()]),
-        teams=dict(validators=[DataRequired()]),
-        #reviewer1=dict(query_factory =reviewer1_choices),
-        #reviewer2=dict(query_factory =reviewer2_choices),
-    )
   
-   
+class SWProjectView(sqla.ModelView):
+    column_labels = dict(teams='Team', reviewers='Reviewer 1',SVN='SVN',version='Ver')
+                         
+    #column_labels = dict(reviewers='Reviewer 1')
+    #column_labels = dict(project_name='Project')
+    #column_labels = dict(SVN='SVN')
+    column_list = ['teams','name', 'project_name','version','SVN', 'notes',
+                   'reviewers','comment1','review1','reviewer_2','comment2','review2',
+                   'comment3','approve' ]
+    
     # All fields become Readonly if approved
     form_overrides = {
         'project_name': ReadOnlyStringField,
-        #'teams': ReadOnlyStringField,
+        #'team': ReadOnlyStringField,
         'name': ReadOnlyStringField,
         'version': ReadOnlyStringField,
         'SVN': ReadOnlyStringField,
-        'notes': ReadOnlyTextAreaField,
-        'comment1': ReadOnlyTextAreaField,  
-        'comment2': ReadOnlyTextAreaField,
+        'notes': ReadOnlyStringField,
+        'comment1': ReadOnlyStringField,
+        'comment2': ReadOnlyStringField,
+        #'comment3': ReadOnlyStringField,
+        #'reviewer1': ReadOnlyStringField,
+        #'reviewer2': ReadOnlyStringField,
+        #'reviewer_1': ReadOnlyStringField,
     }
 
     def edit_form(self, obj=None):
@@ -447,104 +293,56 @@ class SWProjectView(sqla.ModelView):
         form = super(SWProjectView, self).edit_form(obj)
         form.project_name.readonly_condition = readonly_condition
         #form.team.readonly_condition = readonly_condition
-        #form.name.readonly_condition = readonly_condition
+        form.name.readonly_condition = readonly_condition
         form.version.readonly_condition = readonly_condition
         form.SVN.readonly_condition = readonly_condition
         form.notes.readonly_condition = readonly_condition
         form.comment1.readonly_condition = readonly_condition
         form.comment2.readonly_condition = readonly_condition
-
+        #form.comment3.readonly_condition = readonly_condition
+        #form.reviewer1.readonly_condition = readonly_condition
+        #form.reviewer2.readonly_condition = readonly_condition
+        #form.reviewer_1.readonly_condition = readonly_condition
         return form
     
-    # The filters and export
-    can_export = True
-    column_searchable_list = ('teams','name', 'project_name',) 
+    # The filters
+    column_searchable_list = ('name', 'project_name',) 
     column_filters = [
-       'submitted_at', 'teams', 'name', 'project_name',
-       FilterApprove(column=Project.approve, name='Approve Status',
-                            options=(('1', 'Approved'), ('2', 'Open')))
+        #FilterEqual(column=User.last_name, name='Last Name'),
+        FilterApprove(column=Project.approve, name='Approve Status',
+                            options=(('1', 'Approved'), ('2', 'Not Approved')))
     ]
-      
-    # Automatically store the developers' name and team when creating project
-    form_excluded_columns = ('name', 'teams')
-    def on_model_change(self, form, model, is_created):
-        if is_created:
-            model.name = current_user.first_name
-            model.teams = current_user.teams.name
-        if not is_created:    
-            model.last_editor = current_user.first_name
-            #model.updated_on = datetime.datetime.now          
-
-    # Restrict only the project owners can edit the project according to the review order
-    def update_model(self, form, model):
-        form.populate_obj(model)
-        if current_user.has_role('developer'):
-            if model.name != current_user.first_name:
-              flash('You are not the project owner!', 'error')
-              return    
-            else: 
-              flash('Notes updated!', 'message')
-        if current_user.has_role('reviewer1'):
-            if model.reviewer1 != current_user.first_name:
-              flash('You are not the project owner!', 'error')
-              return    
-            else: 
-              flash('Review updated!', 'message')
-        if current_user.has_role('reviewer2'):
-           if model.review1 == None or model.review1 ==0:
-              flash('You are not the current approver!', 'error')
-              return
-           else:
-            if model.reviewer2 != current_user.first_name:
-              flash('You are not the project owner!', 'error')
-              return    
-            else: 
-              flash('Review updated!', 'message')
-        if current_user.has_role('superuser'):
-           if model.review1 == None or model.review1 ==0 or model.review2 == None or model.review2 ==0:
-              flash('You are not the current approver!', 'error')
-              return
-           else:
-              flash('Review updated!', 'message')
-        if current_user.has_role('administrator'):
-              flash('You are not the project owner!', 'error')
-              return
-        self.session.add(model)
-        self._on_model_change(form, model, False)
-        self.session.commit()
-
-     
+    can_export = True
+    '''
+    form_widget_args = {
+            'project_name': {
+            'readonly': True
+         },
+        }
+    '''
+    
     def is_accessible(self):
         if not current_user.is_active or not current_user.is_authenticated:
             return False
         #else:
             #return True      
 
-        if current_user.has_role('developer'):
+        if current_user.has_role('user'):
             self.can_edit = True
             self.can_create = True
             self.can_delete = False
             return True
         if current_user.has_role('reviewer1'):
             self.can_edit = True
-            self.can_create = False
+            self.can_create = True
             self.can_delete = False
             return True       
-        if  current_user.has_role('reviewer2') or current_user.has_role('superuser'):
+        if current_user.has_role('administrator') or current_user.has_role('reviewer2') or current_user.has_role('superuser'):
             self.can_edit = True
-            self.can_create = False
-            self.can_delete = False
-            return True
-        if  current_user.has_role('administrator'):
-            self.can_edit = True
-            self.can_create = False
+            self.can_create = True
             self.can_delete = True
             return True
-        if  current_user.has_role('visitor'):
-            self.can_edit = False
-            self.can_create = False
-            self.can_delete = False
-            return True
+        
         return False
 
     @property
@@ -569,118 +367,159 @@ class SWProjectView(sqla.ModelView):
        
         if not has_app_context() or current_user.has_role('reviewer1'):
          edit_form_rules = [        
-            #rules.Header('Personal Info'),
+            rules.Header('Personal Info'),
+            #rules.Field('team'),
+            #rules.Field('teams'),
+            rules.Field('name'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
-            rules.Field('version'), 
+            rules.Field('version'),
             rules.Field('SVN'),
-            CustomizableField('notes', field_args={
-                 'readonly': True
-            }),
-            #rules.Field('project_name'),
-            #rules.Field('version'),
-            #rules.Field('SVN'),
-            #rules.Field('notes'),
+            #rules.Field('submitted_at'),
+            rules.Field('notes'),
             rules.Header('Reviewers'),
+            #rules.Field('reviewer1'),
             rules.Field('comment1'),
-            CustomizableField('review1', field_args={
-                 'readonly': True
-            }),
+            #CustomizableField('reviewer2', field_args={
+            #     'readonly': True
+            #}),
             CustomizableField('comment2', field_args={
                  'readonly': True
             }),
-            CustomizableField('comment3', field_args={
+            CustomizableField('review1', field_args={
                  'readonly': True
             }),
+            #rules.Field('reviewers'),
           ]
          
         if not has_app_context() or current_user.has_role('reviewer2'):
          edit_form_rules = [        
-            #rules.Header('Personal Info'),
+            rules.Header('Personal Info'),
+            #rules.Field('team'),
+            #rules.Field('teams'),
+            rules.Field('name'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
             rules.Field('version'),
             rules.Field('SVN'),
+            #rules.Field('submitted_at'),
             CustomizableField('notes', field_args={
                  'readonly': True
             }),
             rules.Header('Reviewers'),
+            #rules.Field('reviewer1'),
             CustomizableField('comment1', field_args={
                  'readonly': True
             }),
+            #rules.Field('reviewer2'),
             rules.Field('comment2'),
             CustomizableField('review2', field_args={
                  'readonly': True
             }),
-            CustomizableField('comment3', field_args={
-                 'readonly': True
-            }),
+            #rules.Field('reviewers'),
          ]
  
-        if not has_app_context() or current_user.has_role('developer'):
+        if not has_app_context() or current_user.has_role('user'):
          edit_form_rules = [        
-            #rules.Header('Personal Info'),
-            rules.Header('Project Info'),
-            CustomizableField('project_name', field_args={
+            rules.Header('Personal Info'),
+            #CustomizableField('team', field_args={
+             #    'readonly': True
+            #}),
+            #rules.Field('teams'),
+            CustomizableField('name', field_args={
                  'readonly': True
             }),
-            CustomizableField('version', field_args={
-                 'readonly': True
-            }),
-            CustomizableField('SVN', field_args={
-                 'readonly': True
-            }),
-            #rules.Container('wrap', rules.Field('notes')),
-            rules.Field('notes'),
-            rules.Header('Reviewers'),           
-            CustomizableField('comment1', field_args={
-                 'readonly': True
-            }),
-            CustomizableField('comment2', field_args={
-                 'readonly': True
-            }),
-            CustomizableField('comment3', field_args={
-                 'readonly': True
-            }),
-         ]
-       
-        if not has_app_context() or current_user.has_role('superuser') or current_user.has_role('administrator'):
-         edit_form_rules = [        
-            #rules.Header('Personal Info'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
             rules.Field('version'),
             rules.Field('SVN'),
+            #rules.Field('submitted_at'),
             rules.Field('notes'),
             rules.Header('Reviewers'),
+            #rules.Field('reviewer1'),
+            #CustomizableField('reviewer1', field_args={
+             #    'readonly': not self.model.approve
+            #}),           
+            CustomizableField('comment1', field_args={
+                 'readonly': True
+            }),
+            #rules.Field('reviewer2'),
+            CustomizableField('comment2', field_args={
+                 'readonly': True
+            }),
+            #rules.Field('reviewers'),
+            #CustomizableField('review2', field_args={
+             #    'readonly': True
+            #}),
+         ]
+       
+        if not has_app_context() or current_user.has_role('superuser') or current_user.has_role('administrator'):
+         edit_form_rules = [        
+            rules.Header('Personal Info'),
+            #rules.Field('team'),
+            rules.Field('teams'),
+            rules.Field('name'),
+            rules.Header('Project Info'),
+            rules.Field('project_name'),
+            rules.Field('version'),
+            rules.Field('SVN'),
+            #rules.Field('submitted_at'),
+            rules.Field('notes'),
+            rules.Header('Reviewers'),
+            #rules.Field('reviewer1'),
             rules.Field('comment1'),
             rules.Field('review1'),
+            #rules.Field('reviewer2'),
             rules.Field('comment2'),
             rules.Field('review2'),
             rules.Field('comment3'),
             rules.Field('approve'), 
+            #CustomizableField('reviewer_1', field_args={
+            #     'readonly': True
+            #}),
+            #rules.Field('reviewers'),
          ]
+ 
+         '''
+         if not has_app_context() or current_user.has_role('superuser'):
+             edit_form_rules.append('approve')
+         
+         if not has_app_context() or current_user.has_role('reviewer1'):
+             edit_form_rules.append('review1')
+         if not has_app_context() or current_user.has_role('reviewer2'):
+             edit_form_rules.append('review2')
+         '''
         return edit_form_rules
 
     @property
     def create_form_rules(self):
 
         create_form_rules = [
-            #rules.Header('Personal Info'),
-            #rules.Field('teams'),
+            rules.Header('Personal Info'),
+            rules.Field('teams'),
+            #rules.Field('team'),
+            rules.Field('name'),
             rules.Header('Project Info'),
             rules.Field('project_name'),
             rules.Field('version'),
             rules.Field('SVN'),
             rules.Field('notes'),
-            #rules.Field('submitted_at'),
             rules.Header('Reviewers'),
-            #rules.Field('reviewers'),
-            #rules.Field('reviewer_2'), 
-            rules.Field('reviewer1'), 
-            rules.Field('reviewer2'),
+            #rules.Field('reviewer1'),
+            #rules.Field('reviewer2'),
+            #rules.Field('reviewer_1'),
+            rules.Field('reviewers'),
+            rules.Field('reviewer_2'),
         ]
         return create_form_rules
+        '''
+        if not has_app_context() or current_user.has_role('superuser'):
+            create_form_rules.append('approve')
+        if not has_app_context() or current_user.has_role('reviewer1'):
+            create_form_rules.append('review1')
+        if not has_app_context() or current_user.has_role('reviewer2'):
+            create_form_rules.append('review2')
+        '''
 
 #Inherit FileAdmin
 class FileView(FileAdmin):
@@ -691,28 +530,19 @@ class FileView(FileAdmin):
             return False
            
         if current_user.has_role('administrator'):
-            self.can_rename = False
+            self.can_rename = True
             self.can_mkdir = True
-            self.can_delete = False
-            self.can_upload = False
+            self.can_delete = True
             return True
         if current_user.has_role('superuser') or current_user.has_role('reviewer2'):
-            self.can_rename = False
+            self.can_rename = True
             self.can_mkdir = True
             self.can_delete = False
-            self.can_upload = False
             return True
-        if current_user.has_role('developer') or current_user.has_role('reviewer1') :
+        if current_user.has_role('user') or current_user.has_role('reviewer1') :
             self.can_rename = False
             self.can_mkdir = False
             self.can_delete = False
-            self.can_upload = True
-            return True
-        if current_user.has_role('visitor'):
-            self.can_rename = False
-            self.can_mkdir = False
-            self.can_delete = False
-            self.can_upload = False
             return True
         return False
 
@@ -748,21 +578,20 @@ admin = flask_admin.Admin(
     app,
     'Release Control System',
     # log in success page
-    base_template='my_master.html',  
-    #base_template='layout.html', 
+    base_template='my_master.html',   
     template_mode='bootstrap3',
 )
 
 # Add model views and avoid warnings
 #with warnings.catch_warnings():
 #warnings.filterwarnings('ignore', 'Fields missing from ruleset', UserWarning)
-admin.add_view(AdminModelView(Role, db.session,category='Management'))
-admin.add_view(TeamView(Team, db.session,category='Management'))
-admin.add_view(UserListView(User, db.session, name = "User List", endpoint="users",category='Management'))
-admin.add_view(UserView(User, db.session, name = "User Profile"))
+admin.add_view(MyModelView(Role, db.session))
+admin.add_view(UserView(User, db.session))
+admin.add_view(TeamView(Team, db.session))
 admin.add_view(SWProjectView(Project, db.session, name = "Project"))
+#admin.add_view(SWProjectView(Project, db.session))
 admin.add_view(FileView(file_path, '/static/', name='File'))
-
+#admin.add_view(FileView(file_path, name='File'))
 
 # define a context processor for merging flask-admin's template context into the
 # flask-security views.
@@ -834,5 +663,5 @@ if __name__ == '__main__':
         build_sample_db()
 
     # Start app
-    app.run(debug=True)
-    #app.run(port=5003,host='0.0.0.0')
+    #app.run(debug=True)
+    app.run(port=5003)
